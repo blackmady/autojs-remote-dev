@@ -78,63 +78,54 @@
             </aside>
 
             <!-- Main Area (Details, Logs, Commands) -->
-            <main class="flex-1 flex flex-col bg-gray-50 p-4 overflow-hidden">
+            <main class="flex-1 flex flex-col bg-gray-50 p-4 overflow-hidden relative">
+                <!-- 右上角日志按钮 -->
+                <div class="absolute top-4 right-4 z-20">
+                    <button id="toggleLogsBtn" class="px-2 py-1 text-xs bg-gray-300 rounded hover:bg-gray-400">
+                        <i class="fas fa-eye mr-1"></i><span id="toggleLogsBtnText">显示日志</span>
+                    </button>
+                </div>
                 <!-- Selected Device Info -->
                 <section id="deviceInfoSection" class="mb-4 bg-white p-4 rounded shadow hidden">
                     <h3 class="text-md font-semibold text-gray-700 mb-2">设备信息 (<span id="selectedDeviceName">N/A</span>)</h3>
                     <div id="deviceDetails" class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-600">
-                        <!-- Details like Brand, Model, Battery will be populated here -->
                         <p>请先从左侧选择一个设备</p>
                     </div>
                 </section>
-
-                <!-- Tabs for Logs / Commands -->
+                <!-- 只保留发送脚本面板 -->
                 <div class="flex-1 flex flex-col overflow-hidden">
-                     <div class="border-b border-gray-200 mb-3">
-                         <nav class="-mb-px flex space-x-6" aria-label="Tabs">
-                              <button id="tabLogs" class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600" aria-current="page">
-                                 <i class="fas fa-receipt mr-1"></i>设备日志
-                              </button>
-                              <button id="tabCommand" class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                                 <i class="fas fa-paper-plane mr-1"></i>发送脚本
-                              </button>
-                         </nav>
-                    </div>
-
-                    <!-- Log Panel -->
-                    <div id="panelLogs" class="flex-1 flex flex-col overflow-hidden bg-white p-4 rounded shadow">
-                        <div class="flex justify-between items-center mb-2">
-                            <h3 class="text-md font-semibold text-gray-700">日志输出 (<span id="logDeviceName">无</span>)</h3>
-                            <button id="clearLogsBtn" class="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600">
-                                <i class="fas fa-trash-alt mr-1"></i>清空日志
-                            </button>
-                        </div>
-                        <div id="logOutput" class="flex-1 overflow-y-auto border border-gray-200 rounded p-2 bg-gray-50 text-xs font-mono whitespace-pre-wrap break-words">
-                            <!-- Logs will appear here -->
-                            欢迎使用 Auto.js 远程控制台...
-                        </div>
-                    </div>
-
-                    <!-- Command Panel -->
-                    <div id="panelCommand" class="hidden flex-1 flex flex-col overflow-hidden bg-white p-4 rounded shadow">
+                    <div id="panelCommand" class="flex-1 flex flex-col overflow-hidden bg-white p-4 rounded shadow">
                         <h3 class="text-md font-semibold text-gray-700 mb-2">发送脚本任务</h3>
-                         <p class="text-xs text-yellow-700 bg-yellow-100 p-2 rounded mb-3"><i class="fas fa-exclamation-triangle mr-1"></i>**警告:** 从网络发送并执行任意脚本具有极高的安全风险！请确保您完全信任服务端和网络环境。</p>
-                        <textarea id="scriptInput" class="w-full h-40 border border-gray-300 rounded p-2 font-mono text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mb-3" placeholder="在此输入要执行的 JavaScript 代码...
-例如: toast('Hello from Admin UI!');"></textarea>
+                        <p class="text-xs text-yellow-700 bg-yellow-100 p-2 rounded mb-3"><i class="fas fa-exclamation-triangle mr-1"></i>**警告:** 从网络发送并执行任意脚本具有极高的安全风险！请确保您完全信任服务端和网络环境。</p>
+                        <textarea id="scriptInput" class="w-full h-40 border border-gray-300 rounded p-2 font-mono text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mb-3" placeholder="在此输入要执行的 JavaScript 代码...\n例如: toast('Hello from Admin UI!');"></textarea>
                         <div class="flex space-x-3">
-                             <button id="sendToSelectedBtn" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                                 <i class="fas fa-user mr-1"></i>发送到选中设备
-                             </button>
-                             <button id="sendToCheckedBtn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                                 <i class="fas fa-check-square mr-1"></i>发送到勾选设备 (<span id="checkedCount">0</span>)
-                             </button>
-                             <button id="sendToAllBtn" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <button id="sendToSelectedBtn" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i class="fas fa-user mr-1"></i>发送到选中设备
+                            </button>
+                            <button id="sendToCheckedBtn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i class="fas fa-check-square mr-1"></i>发送到勾选设备 (<span id="checkedCount">0</span>)
+                            </button>
+                            <button id="sendToAllBtn" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
                                 <i class="fas fa-broadcast-tower mr-1"></i>发送到所有在线设备
-                             </button>
+                            </button>
                         </div>
                     </div>
                 </div>
-
+                <!-- 右侧抽屉日志面板 -->
+                <div id="panelLogsDrawer" class="fixed top-0 right-0 h-full w-96 max-w-full bg-white shadow-2xl border-l border-gray-200 z-50 transform translate-x-full transition-transform duration-300 flex flex-col">
+                    <div class="flex justify-between items-center p-4 border-b">
+                        <h3 class="text-md font-semibold text-gray-700">日志输出 (<span id="logDeviceName">无</span>)</h3>
+                        <button id="closeLogsBtn" class="text-gray-500 hover:text-red-600 text-lg"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="flex-1 overflow-y-auto border-gray-200 p-2 bg-gray-50 text-xs font-mono whitespace-pre-wrap break-words" id="logOutput">
+                        欢迎使用 Auto.js 远程控制台...
+                    </div>
+                    <div class="p-2 border-t flex justify-end">
+                        <button id="clearLogsBtn" class="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600">
+                            <i class="fas fa-trash-alt mr-1"></i>清空日志
+                        </button>
+                    </div>
+                </div>
             </main>
         </div>
     </div>
@@ -154,11 +145,11 @@
         const selectedDeviceNameSpan = document.getElementById('selectedDeviceName');
         const deviceDetailsDiv = document.getElementById('deviceDetails');
 
-        const tabLogs = document.getElementById('tabLogs');
-        const tabCommand = document.getElementById('tabCommand');
-        const panelLogs = document.getElementById('panelLogs');
-        const panelCommand = document.getElementById('panelCommand');
-        const logOutputDiv = document.getElementById('logOutput');
+        const panelLogsDrawer = document.getElementById('panelLogsDrawer');
+        const toggleLogsBtn = document.getElementById('toggleLogsBtn');
+        const toggleLogsBtnText = document.getElementById('toggleLogsBtnText');
+        const closeLogsBtn = document.getElementById('closeLogsBtn');
+        const logOutput = document.getElementById('logOutput');
         const logDeviceNameSpan = document.getElementById('logDeviceName');
         const clearLogsBtn = document.getElementById('clearLogsBtn');
 
@@ -172,6 +163,33 @@
         let clients = new Map(); // Map<clientId, clientInfo>
         let selectedClientId = null;
         let logsByClient = new Map(); // Map<clientId, logHTML>
+
+        // 默认隐藏抽屉
+        panelLogsDrawer.classList.add('translate-x-full');
+        let logsVisible = false;
+        function showLogsDrawer() {
+            panelLogsDrawer.classList.remove('translate-x-full');
+            toggleLogsBtnText.textContent = '隐藏日志';
+            toggleLogsBtn.classList.remove('bg-gray-300');
+            toggleLogsBtn.classList.add('bg-blue-400', 'text-white');
+            logsVisible = true;
+            renderLogsForSelectedClient();
+        }
+        function hideLogsDrawer() {
+            panelLogsDrawer.classList.add('translate-x-full');
+            toggleLogsBtnText.textContent = '显示日志';
+            toggleLogsBtn.classList.add('bg-gray-300');
+            toggleLogsBtn.classList.remove('bg-blue-400', 'text-white');
+            logsVisible = false;
+        }
+        toggleLogsBtn.addEventListener('click', () => {
+            if (logsVisible) {
+                hideLogsDrawer();
+            } else {
+                showLogsDrawer();
+            }
+        });
+        closeLogsBtn.addEventListener('click', hideLogsDrawer);
 
         // --- WebSocket Logic ---
 
@@ -563,7 +581,7 @@
          function renderLogsForSelectedClient() {
              if (!selectedClientId) {
                  logDeviceNameSpan.textContent = '无';
-                 logOutputDiv.innerHTML = '请先从左侧选择一个设备以查看其日志。';
+                 logOutput.innerHTML = '请先从左侧选择一个设备以查看其日志。';
                  return;
              }
 
@@ -571,10 +589,10 @@
              logDeviceNameSpan.textContent = getClientName(selectedClientId);
 
              const logs = logsByClient.get(selectedClientId) || '<span class="text-gray-500 italic">此设备暂无日志。</span>';
-             logOutputDiv.innerHTML = logs;
+             logOutput.innerHTML = logs;
 
              // Scroll to bottom
-             logOutputDiv.scrollTop = logOutputDiv.scrollHeight;
+             logOutput.scrollTop = logOutput.scrollHeight;
          }
 
          function addLogEntry(source, message, className = 'text-gray-700') {
@@ -582,14 +600,14 @@
              const logTime = new Date().toLocaleTimeString();
              const logHtml = `<div class="${className}"><span class="text-gray-500 mr-2">[${logTime}]</span><span class="font-semibold mr-1">[${source}]</span>${escapeHtml(message)}</div>`;
 
-             logOutputDiv.innerHTML += logHtml; // Append to currently viewed logs (could be system or client)
+             logOutput.innerHTML += logHtml; // Append to currently viewed logs (could be system or client)
 
              // Also log to console for debugging
              console.log(`[${source}] ${message}`);
 
              // Scroll to bottom if the logs panel is visible
-             if (!panelLogs.classList.contains('hidden')) {
-                 logOutputDiv.scrollTop = logOutputDiv.scrollHeight;
+             if (!panelLogsDrawer.classList.contains('translate-x-full')) {
+                 logOutput.scrollTop = logOutput.scrollHeight;
              }
          }
 
@@ -616,51 +634,18 @@
              }
         });
 
-         // Tab switching
-         tabLogs.addEventListener('click', () => {
-             panelLogs.classList.remove('hidden');
-             panelCommand.classList.add('hidden');
-             tabLogs.classList.add('border-blue-500', 'text-blue-600');
-             tabLogs.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
-             tabCommand.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
-             tabCommand.classList.remove('border-blue-500', 'text-blue-600');
-             // Re-render logs in case client was selected while command tab was active
-             renderLogsForSelectedClient();
-         });
-
-         tabCommand.addEventListener('click', () => {
-             panelLogs.classList.add('hidden');
-             panelCommand.classList.remove('hidden');
-             tabCommand.classList.add('border-blue-500', 'text-blue-600');
-             tabCommand.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
-             tabLogs.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
-             tabLogs.classList.remove('border-blue-500', 'text-blue-600');
-         });
-
-         clearLogsBtn.addEventListener('click', () => {
-             if (selectedClientId) {
-                 logsByClient.set(selectedClientId, ''); // Clear stored logs for this client
-                 renderLogsForSelectedClient(); // Re-render the empty log panel
-                 addLogEntry('系统', `已清空设备 ${getClientName(selectedClientId)} 的本地日志显示。`);
-             } else {
-                 // If no client selected, maybe clear the system log area?
-                 // logOutputDiv.innerHTML = ''; // Or just log a message
-                 addLogEntry('系统', '请先选择一个设备以清空其日志。');
-             }
-         });
-
-         selectAllBtn.addEventListener('click', () => {
+        selectAllBtn.addEventListener('click', () => {
             deviceListDiv.querySelectorAll('.device-checkbox').forEach(cb => cb.checked = true);
             updateCheckedCount();
-         });
+        });
 
-         deselectAllBtn.addEventListener('click', () => {
+        deselectAllBtn.addEventListener('click', () => {
             deviceListDiv.querySelectorAll('.device-checkbox').forEach(cb => cb.checked = false);
             updateCheckedCount();
-         });
+        });
 
 
-         // --- Command Sending ---
+        // --- Command Sending ---
         function sendScriptCommand(targetType, targetIds = []) {
             const scriptContent = scriptInput.value.trim();
             if (!scriptContent) {
