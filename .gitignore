@@ -1,0 +1,54 @@
+# Node.js 依赖
+node_modules/
+pnpm-lock.yaml
+npm-debug.log*
+yarn.lock
+
+# 环境变量
+.env
+.env.*
+
+# Prisma 生成文件与数据库
+/generated/
+generated/
+prisma/dev.db
+prisma/*.db
+prisma/*.sqlite
+prisma/migrations/
+prisma/.DS_Store
+
+# Auto.js 构建/缓存
+AutoJs/build/
+AutoJs/output/
+AutoJs/*.apk
+AutoJs/.DS_Store
+
+# 日志文件
+*.log
+logs/
+log/
+
+# IDE/编辑器配置
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# MacOS 系统文件
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows 系统文件
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 其他临时/备份文件
+*.bak
+*.tmp
+*.temp
+~$*
+
+# 其他你不希望提交的文件可在此补充
+

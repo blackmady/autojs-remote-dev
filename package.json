@@ -1,0 +1,20 @@
+{
+  "name": "autojs-remote",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "serve": "nodemon src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.9.0",
+  "dependencies": {
+    "@prisma/client": "^6.7.0",
+    "prisma": "^6.7.0",
+    "sqlite3": "^5.1.7",
+    "ws": "^8.18.1"
+  }
+}

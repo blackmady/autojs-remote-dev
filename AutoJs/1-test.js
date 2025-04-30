@@ -1,0 +1,1 @@
+launch("com.tencent.mm");

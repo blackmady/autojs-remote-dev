@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto.js 远程控制台</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for Icons via CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        /* Custom scrollbar for log area (optional) */
+        #logOutput::-webkit-scrollbar {
+            width: 8px;
+        }
+        #logOutput::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        #logOutput::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        #logOutput::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        .device-item.selected {
+            background-color: #e0f2fe; /* Light blue background for selected */
+        }
+        /* Blinking animation for connection attempts */
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+        .status-connecting {
+            animation: blink 1.5s linear infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="flex flex-col h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-md p-4 flex justify-between items-center">
+            <h1 class="text-xl font-semibold text-gray-800">
+                <i class="fas fa-terminal text-blue-600 mr-2"></i>Auto.js 远程控制台
+            </h1>
+            <div class="flex items-center space-x-4">
+                 <label for="serverAddress" class="text-sm font-medium text-gray-600">服务器:</label>
+                 <input type="text" id="serverAddress" value="ws://localhost:8080" class="px-2 py-1 border rounded text-sm w-48">
+                 <button id="connectBtn" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
+                     <i class="fas fa-plug mr-1"></i><span id="connectBtnText">连接</span>
+                 </button>
+                 <div id="serverStatus" class="flex items-center space-x-2">
+                     <span class="text-sm font-medium text-gray-600">状态:</span>
+                     <span id="statusIndicator" class="w-3 h-3 bg-red-500 rounded-full" title="未连接"></span>
+                     <span id="statusText" class="text-sm text-gray-500">未连接</span>
+                 </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Sidebar (Device List) -->
+            <aside class="w-1/4 bg-white border-r border-gray-200 p-4 overflow-y-auto flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                     <h2 class="text-lg font-semibold text-gray-700">在线设备</h2>
+                     <span id="deviceCount" class="text-sm bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">0</span>
+                </div>
+                <div class="mb-2 flex items-center space-x-2">
+                    <button id="selectAllBtn" class="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300">全选</button>
+                    <button id="deselectAllBtn" class="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300">全不选</button>
+                 </div>
+                <div id="deviceList" class="space-y-2 flex-1">
+                    <!-- Device items will be added here -->
+                    <p class="text-gray-500 text-sm italic">等待设备连接...</p>
+                </div>
+            </aside>
+
+            <!-- Main Area (Details, Logs, Commands) -->
+            <main class="flex-1 flex flex-col bg-gray-50 p-4 overflow-hidden">
+                <!-- Selected Device Info -->
+                <section id="deviceInfoSection" class="mb-4 bg-white p-4 rounded shadow hidden">
+                    <h3 class="text-md font-semibold text-gray-700 mb-2">设备信息 (<span id="selectedDeviceName">N/A</span>)</h3>
+                    <div id="deviceDetails" class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-600">
+                        <!-- Details like Brand, Model, Battery will be populated here -->
+                        <p>请先从左侧选择一个设备</p>
+                    </div>
+                </section>
+
+                <!-- Tabs for Logs / Commands -->
+                <div class="flex-1 flex flex-col overflow-hidden">
+                     <div class="border-b border-gray-200 mb-3">
+                         <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+                              <button id="tabLogs" class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600" aria-current="page">
+                                 <i class="fas fa-receipt mr-1"></i>设备日志
+                              </button>
+                              <button id="tabCommand" class="whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                 <i class="fas fa-paper-plane mr-1"></i>发送脚本
+                              </button>
+                         </nav>
+                    </div>
+
+                    <!-- Log Panel -->
+                    <div id="panelLogs" class="flex-1 flex flex-col overflow-hidden bg-white p-4 rounded shadow">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-md font-semibold text-gray-700">日志输出 (<span id="logDeviceName">无</span>)</h3>
+                            <button id="clearLogsBtn" class="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600">
+                                <i class="fas fa-trash-alt mr-1"></i>清空日志
+                            </button>
+                        </div>
+                        <div id="logOutput" class="flex-1 overflow-y-auto border border-gray-200 rounded p-2 bg-gray-50 text-xs font-mono whitespace-pre-wrap break-words">
+                            <!-- Logs will appear here -->
+                            欢迎使用 Auto.js 远程控制台...
+                        </div>
+                    </div>
+
+                    <!-- Command Panel -->
+                    <div id="panelCommand" class="hidden flex-1 flex flex-col overflow-hidden bg-white p-4 rounded shadow">
+                        <h3 class="text-md font-semibold text-gray-700 mb-2">发送脚本任务</h3>
+                         <p class="text-xs text-yellow-700 bg-yellow-100 p-2 rounded mb-3"><i class="fas fa-exclamation-triangle mr-1"></i>**警告:** 从网络发送并执行任意脚本具有极高的安全风险！请确保您完全信任服务端和网络环境。</p>
+                        <textarea id="scriptInput" class="w-full h-40 border border-gray-300 rounded p-2 font-mono text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mb-3" placeholder="在此输入要执行的 JavaScript 代码...
+例如: toast('Hello from Admin UI!');"></textarea>
+                        <div class="flex space-x-3">
+                             <button id="sendToSelectedBtn" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                 <i class="fas fa-user mr-1"></i>发送到选中设备
+                             </button>
+                             <button id="sendToCheckedBtn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                 <i class="fas fa-check-square mr-1"></i>发送到勾选设备 (<span id="checkedCount">0</span>)
+                             </button>
+                             <button id="sendToAllBtn" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i class="fas fa-broadcast-tower mr-1"></i>发送到所有在线设备
+                             </button>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const serverAddressInput = document.getElementById('serverAddress');
+        const connectBtn = document.getElementById('connectBtn');
+        const connectBtnText = document.getElementById('connectBtnText');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const deviceListDiv = document.getElementById('deviceList');
+        const deviceCountSpan = document.getElementById('deviceCount');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const deselectAllBtn = document.getElementById('deselectAllBtn');
+
+        const deviceInfoSection = document.getElementById('deviceInfoSection');
+        const selectedDeviceNameSpan = document.getElementById('selectedDeviceName');
+        const deviceDetailsDiv = document.getElementById('deviceDetails');
+
+        const tabLogs = document.getElementById('tabLogs');
+        const tabCommand = document.getElementById('tabCommand');
+        const panelLogs = document.getElementById('panelLogs');
+        const panelCommand = document.getElementById('panelCommand');
+        const logOutputDiv = document.getElementById('logOutput');
+        const logDeviceNameSpan = document.getElementById('logDeviceName');
+        const clearLogsBtn = document.getElementById('clearLogsBtn');
+
+        const scriptInput = document.getElementById('scriptInput');
+        const sendToSelectedBtn = document.getElementById('sendToSelectedBtn');
+        const sendToCheckedBtn = document.getElementById('sendToCheckedBtn');
+        const sendToAllBtn = document.getElementById('sendToAllBtn');
+        const checkedCountSpan = document.getElementById('checkedCount');
+
+        let ws = null;
+        let clients = new Map(); // Map<clientId, clientInfo>
+        let selectedClientId = null;
+        let logsByClient = new Map(); // Map<clientId, logHTML>
+
+        // --- WebSocket Logic ---
+
+        function connectWebSocket() {
+            const address = serverAddressInput.value.trim();
+            if (!address) {
+                alert("请输入服务器地址！");
+                return;
+            }
+            if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+                 console.log("WebSocket is already connecting or open.");
+                 return; // Avoid multiple connections
+            }
+
+            updateStatus('connecting', '连接中...');
+            serverAddressInput.disabled = true;
+            connectBtnText.textContent = '连接中...';
+            connectBtn.disabled = true;
+
+            try {
+                ws = new WebSocket(address);
+
+                ws.onopen = () => {
+                    console.log("WebSocket connection opened to:", address);
+                    updateStatus('connected', '已连接');
+                    connectBtnText.textContent = '断开';
+                    connectBtn.disabled = false;
+                    serverAddressInput.disabled = true; // Keep disabled while connected
+                    // Request initial client list from server
+                    sendToServer({ type: 'admin_request_clients' });
+                    addLogEntry('系统', `成功连接到服务器 ${address}`, 'text-green-600');
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        // console.log("Message received:", message);
+                        handleServerMessage(message);
+                    } catch (error) {
+                        console.error("Failed to parse message or handle:", error);
+                        addLogEntry('错误', `收到无法解析的消息: ${event.data}`, 'text-red-600');
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    console.error("WebSocket Error:", error);
+                    updateStatus('error', '连接错误');
+                    addLogEntry('错误', `WebSocket 连接错误。请检查服务器地址和状态。`, 'text-red-600');
+                    // Don't reset button state here, onclose will handle it
+                };
+
+                ws.onclose = (event) => {
+                    console.log("WebSocket connection closed:", event.code, event.reason);
+                    const reason = event.reason ? ` (${event.reason})` : '';
+                    const message = `WebSocket 连接已断开${reason} (Code: ${event.code})`;
+                    updateStatus('disconnected', '已断开');
+                    addLogEntry('系统', message, 'text-orange-600');
+
+                    ws = null; // Clear the instance
+                    clients.clear(); // Clear client data on disconnect
+                    logsByClient.clear();
+                    selectedClientId = null;
+                    renderDeviceList(); // Update UI to show empty list
+                    renderSelectedDeviceInfo(); // Clear details
+                    renderLogsForSelectedClient(); // Clear logs
+                    updateCommandButtons(); // Disable command buttons
+                    serverAddressInput.disabled = false; // Allow editing address
+                    connectBtnText.textContent = '连接';
+                    connectBtn.disabled = false;
+                };
+
+            } catch (error) {
+                 console.error("Failed to create WebSocket:", error);
+                 updateStatus('error', '创建失败');
+                 addLogEntry('错误', `无法创建 WebSocket 连接: ${error}`, 'text-red-600');
+                 serverAddressInput.disabled = false;
+                 connectBtnText.textContent = '连接';
+                 connectBtn.disabled = false;
+            }
+        }
+
+        function disconnectWebSocket() {
+             if (ws && ws.readyState === WebSocket.OPEN) {
+                 ws.close(1000, "Admin UI closed connection"); // Normal closure
+             } else {
+                 // If connecting or already closed/closing, handle UI state reset directly
+                 updateStatus('disconnected', '已断开');
+                 ws = null;
+                 clients.clear();
+                 logsByClient.clear();
+                 selectedClientId = null;
+                 renderDeviceList();
+                 renderSelectedDeviceInfo();
+                 renderLogsForSelectedClient();
+                 updateCommandButtons();
+                 serverAddressInput.disabled = false;
+                 connectBtnText.textContent = '连接';
+                 connectBtn.disabled = false;
+             }
+        }
+
+        function sendToServer(data) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                try {
+                    ws.send(JSON.stringify(data));
+                } catch (error) {
+                     console.error("Failed to send message:", error);
+                     addLogEntry('错误', `发送消息失败: ${error}`, 'text-red-600');
+                }
+            } else {
+                 addLogEntry('警告', 'WebSocket 未连接，无法发送消息。', 'text-yellow-600');
+            }
+        }
+
+        function updateStatus(statusType, text) {
+            statusIndicator.className = 'w-3 h-3 rounded-full'; // Reset classes
+             statusIndicator.classList.remove('status-connecting'); // Remove animation class
+
+            switch (statusType) {
+                case 'connected':
+                    statusIndicator.classList.add('bg-green-500');
+                    break;
+                case 'disconnected':
+                     statusIndicator.classList.add('bg-red-500');
+                     break;
+                case 'connecting':
+                     statusIndicator.classList.add('bg-yellow-500', 'status-connecting'); // Add animation
+                     break;
+                case 'error':
+                     statusIndicator.classList.add('bg-red-700');
+                     break;
+                default:
+                     statusIndicator.classList.add('bg-gray-400');
+            }
+            statusIndicator.title = text;
+            statusText.textContent = text;
+        }
+
+
+        // --- Message Handling ---
+
+        function handleServerMessage(message) {
+            // console.log("Handling message: ", message); // Debug
+            const { type, payload, clientId } = message; // Assuming server includes clientId
+
+             if (!type) return;
+
+             // Messages related to the overall client list
+             if (type === 'initial_client_list') {
+                 clients.clear();
+                 payload.clients.forEach(client => {
+                     clients.set(client.clientId, { ...client, online: true, logs: '', lastSeen: Date.now() });
+                 });
+                 renderDeviceList();
+                 addLogEntry('系统', `收到初始设备列表，共 ${clients.size} 个设备。`);
+                 return;
+             }
+             if (type === 'client_connected') {
+                 clients.set(payload.clientId, { ...payload.info, clientId: payload.clientId, online: true, logs: '', lastSeen: Date.now() });
+                 addLogEntry('系统', `设备 ${getClientName(payload.clientId)} (${payload.clientId}) 已连接。`, 'text-blue-600');
+                 renderDeviceList();
+                 return;
+             }
+             if (type === 'client_disconnected') {
+                 const client = clients.get(payload.clientId);
+                 if (client) {
+                     client.online = false;
+                     addLogEntry('系统', `设备 ${getClientName(payload.clientId)} (${payload.clientId}) 已断开。`, 'text-orange-600');
+                     renderDeviceList(); // Re-render to show offline status
+                     // If the disconnected client was selected, update the view
+                     if (selectedClientId === payload.clientId) {
+                         renderSelectedDeviceInfo(); // Re-render details to show offline
+                     }
+                 }
+                 return;
+             }
+
+
+             // Messages specific to a client (require clientId)
+             if (!clientId || !clients.has(clientId)) {
+                 console.warn(`Received message for unknown or missing clientId: ${clientId}`, message);
+                 return;
+             }
+
+             const client = clients.get(clientId);
+             client.lastSeen = Date.now(); // Update last seen time
+
+            switch (type) {
+                case 'device_info': // Update/refresh device info
+                    Object.assign(client, payload); // Merge new info
+                    clients.set(clientId, client); // Update map entry
+                    if (clientId === selectedClientId) {
+                        renderSelectedDeviceInfo(); // Update details view if selected
+                    }
+                    renderDeviceList(); // Update potentially changed name/info in list
+                    break;
+                case 'device_status':
+                    Object.assign(client, payload); // Merge new status info (like battery)
+                     clients.set(clientId, client);
+                     // Refresh details ONLY if this client is selected
+                    if (clientId === selectedClientId) {
+                        renderSelectedDeviceInfo();
+                    }
+                    // Optionally update summary info in the list item (more complex)
+                    // renderDeviceList(); // Could be too much re-rendering for frequent status updates
+                    break;
+                case 'log':
+                     // Append log to the specific client's log storage
+                     const logTime = new Date(payload.timestamp || Date.now()).toLocaleTimeString();
+                     const logClass = payload.level === 'error' ? 'text-red-600' : (payload.level === 'warn' ? 'text-yellow-700' : 'text-gray-700');
+                     const logHtml = `<span class="text-gray-500 mr-2">[${logTime}]</span><span class="${logClass}">${escapeHtml(payload.message)}</span>\n`;
+
+                     let currentLogs = logsByClient.get(clientId) || '';
+                     currentLogs += logHtml;
+                      // Limit log length per client
+                     const maxLogLength = 10000; // Characters
+                     if (currentLogs.length > maxLogLength) {
+                         currentLogs = currentLogs.substring(currentLogs.length - maxLogLength);
+                         // Find the first newline to avoid cutting mid-message
+                         let firstNewline = currentLogs.indexOf('\n');
+                         if(firstNewline > -1) {
+                              currentLogs = '...\n' + currentLogs.substring(firstNewline + 1);
+                         }
+                     }
+                     logsByClient.set(clientId, currentLogs);
+
+                     // If this client is selected, update the log panel
+                     if (clientId === selectedClientId) {
+                         renderLogsForSelectedClient();
+                     }
+                    break;
+                case 'script_result':
+                     const resultTime = new Date().toLocaleTimeString();
+                     const resultClass = payload.status === 'error' ? 'text-red-600 font-semibold' : 'text-purple-600';
+                     const resultMsg = payload.status === 'error' ? `脚本执行错误: ${payload.message}` : `脚本执行成功。`;
+                     const resultHtml = `<span class="text-gray-500 mr-2">[${resultTime}]</span><span class="${resultClass}">${escapeHtml(resultMsg)}</span>\n`;
+                     let resultLogs = logsByClient.get(clientId) || '';
+                     resultLogs += resultHtml;
+                     logsByClient.set(clientId, resultLogs); // Store result as a log entry
+                      if (clientId === selectedClientId) {
+                         renderLogsForSelectedClient(); // Show result in log panel
+                     }
+                    addLogEntry('系统', `收到来自 ${getClientName(clientId)} 的脚本执行结果: ${payload.status}`);
+                    break;
+                default:
+                    console.log(`Received unhandled message type: ${type} from ${clientId}`);
+            }
+        }
+
+
+        // --- UI Rendering ---
+
+        function getClientName(clientId) {
+            const client = clients.get(clientId);
+            if (!client) return `未知 (${clientId})`;
+            // Prefer device name, fallback to model, fallback to brand, fallback to ID
+            return client.appName || client.model || client.brand || `设备 (${clientId})`;
+        }
+
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/\"/g, "&quot;")
+                 .replace(/'/g, "&#39;");
+        }
+
+        function renderDeviceList() {
+            deviceListDiv.innerHTML = ''; // Clear current list
+            let onlineCount = 0;
+            if (clients.size === 0) {
+                deviceListDiv.innerHTML = '<p class="text-gray-500 text-sm italic">没有连接的设备。</p>';
+            } else {
+                 // Sort: Online first, then by name/ID
+                 const sortedClients = Array.from(clients.values()).sort((a, b) => {
+                    if (a.online !== b.online) return a.online ? -1 : 1; // Online first
+                    return getClientName(a.clientId).localeCompare(getClientName(b.clientId));
+                 });
+
+                sortedClients.forEach(client => {
+                    const isOnline = client.online;
+                    onlineCount += isOnline ? 1 : 0;
+                    const statusColor = isOnline ? 'bg-green-500' : 'bg-gray-400';
+                    const statusTitle = isOnline ? '在线' : '离线';
+                    const name = getClientName(client.clientId);
+                    const infoText = client.brand && client.model ? `${client.brand} ${client.model}` : `(ID: ${client.clientId})`;
+
+                    const item = document.createElement('div');
+                    item.className = `device-item p-3 border rounded-lg flex items-center space-x-3 cursor-pointer hover:bg-gray-100 ${selectedClientId === client.clientId ? 'selected' : ''} ${!isOnline ? 'opacity-60' : ''}`;
+                    item.dataset.clientId = client.clientId; // Store clientId on the element
+
+                    item.innerHTML = `
+                        <input type="checkbox" class="device-checkbox form-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" data-client-id="${client.clientId}">
+                        <span class="w-3 h-3 ${statusColor} rounded-full flex-shrink-0" title="${statusTitle}"></span>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 truncate" title="${name}">${name}</p>
+                            <p class="text-xs text-gray-500 truncate" title="${infoText}">${infoText}</p>
+                        </div>
+                    `;
+                    // Add click listener to the whole item (excluding checkbox)
+                    item.addEventListener('click', (e) => {
+                        // Prevent selection if checkbox was clicked directly
+                        if (e.target.type !== 'checkbox') {
+                             selectClient(client.clientId);
+                        }
+                    });
+
+                     // Add change listener to the checkbox
+                     const checkbox = item.querySelector('.device-checkbox');
+                     checkbox.addEventListener('change', updateCheckedCount);
+
+
+                    deviceListDiv.appendChild(item);
+                });
+            }
+            deviceCountSpan.textContent = onlineCount;
+            updateCheckedCount(); // Update count after rendering
+            updateCommandButtons(); // Enable/disable buttons based on online count
+        }
+
+        function selectClient(clientId) {
+            if (selectedClientId === clientId) return; // Already selected
+
+            selectedClientId = clientId;
+
+            // Update selection style in the list
+            document.querySelectorAll('.device-item').forEach(item => {
+                item.classList.toggle('selected', item.dataset.clientId === clientId);
+            });
+
+            // Update details, logs, etc.
+            renderSelectedDeviceInfo();
+            renderLogsForSelectedClient();
+            updateCommandButtons(); // Enable 'Send to Selected' button
+        }
+
+         function updateCheckedCount() {
+             const checkedCheckboxes = deviceListDiv.querySelectorAll('.device-checkbox:checked');
+             checkedCountSpan.textContent = checkedCheckboxes.length;
+             updateCommandButtons(); // Enable/disable 'Send to Checked'
+         }
+
+        function renderSelectedDeviceInfo() {
+            if (!selectedClientId || !clients.has(selectedClientId)) {
+                deviceInfoSection.classList.add('hidden');
+                selectedDeviceNameSpan.textContent = 'N/A';
+                 deviceDetailsDiv.innerHTML = '<p>请从左侧选择一个设备</p>';
+                return;
+            }
+
+            const client = clients.get(selectedClientId);
+            selectedDeviceNameSpan.textContent = getClientName(selectedClientId);
+             deviceDetailsDiv.innerHTML = ''; // Clear previous details
+
+            const addDetail = (label, value) => {
+                if (value !== undefined && value !== null && value !== '') {
+                     const p = document.createElement('p');
+                     p.innerHTML = `<span class="font-medium text-gray-800">${label}:</span> ${escapeHtml(value)}`;
+                     deviceDetailsDiv.appendChild(p);
+                }
+            };
+
+            addDetail('状态', client.online ? '在线' : '离线');
+            addDetail('设备名称', client.appName);
+            addDetail('品牌', client.brand);
+            addDetail('型号', client.model);
+            addDetail('安卓版本', client.release ? `${client.release} (SDK ${client.sdkInt})` : `(SDK ${client.sdkInt})`);
+            addDetail('序列号', client.serial); // Consider privacy if showing this
+            addDetail('APP版本', client.appVersion);
+            addDetail('电量', client.battery !== undefined ? `${client.battery}% ${client.isCharging ? '(充电中)' : ''}` : 'N/A');
+            addDetail('内存可用', client.memory && client.memory.available ? `${(client.memory.available / (1024*1024)).toFixed(0)} MB` : 'N/A');
+             addDetail('内存总量', client.memory && client.memory.total ? `${(client.memory.total / (1024*1024)).toFixed(0)} MB` : 'N/A');
+
+             if (client.permissions) {
+                  addDetail('无障碍', client.permissions.accessibility ? '已启用' : '未启用');
+                  addDetail('悬浮窗', client.permissions.overlay ? '已启用' : '未启用');
+                  addDetail('忽略电池优化', client.permissions.ignoreBatteryOptimization ? '已忽略' : '未忽略');
+                  // Capture status is often transient, maybe less useful here unless requested
+             }
+
+             addDetail('最后通信', client.lastSeen ? new Date(client.lastSeen).toLocaleString() : 'N/A');
+
+
+            deviceInfoSection.classList.remove('hidden');
+        }
+
+         function renderLogsForSelectedClient() {
+             if (!selectedClientId) {
+                 logDeviceNameSpan.textContent = '无';
+                 logOutputDiv.innerHTML = '请先从左侧选择一个设备以查看其日志。';
+                 return;
+             }
+
+             const client = clients.get(selectedClientId);
+             logDeviceNameSpan.textContent = getClientName(selectedClientId);
+
+             const logs = logsByClient.get(selectedClientId) || '<span class="text-gray-500 italic">此设备暂无日志。</span>';
+             logOutputDiv.innerHTML = logs;
+
+             // Scroll to bottom
+             logOutputDiv.scrollTop = logOutputDiv.scrollHeight;
+         }
+
+         function addLogEntry(source, message, className = 'text-gray-700') {
+             // Add log to the main admin UI log panel (not specific client logs)
+             const logTime = new Date().toLocaleTimeString();
+             const logHtml = `<div class="${className}"><span class="text-gray-500 mr-2">[${logTime}]</span><span class="font-semibold mr-1">[${source}]</span>${escapeHtml(message)}</div>`;
+
+             logOutputDiv.innerHTML += logHtml; // Append to currently viewed logs (could be system or client)
+
+             // Also log to console for debugging
+             console.log(`[${source}] ${message}`);
+
+             // Scroll to bottom if the logs panel is visible
+             if (!panelLogs.classList.contains('hidden')) {
+                 logOutputDiv.scrollTop = logOutputDiv.scrollHeight;
+             }
+         }
+
+         function updateCommandButtons() {
+            const isConnected = ws && ws.readyState === WebSocket.OPEN;
+            const isAnyClientSelected = !!selectedClientId;
+            const checkedCheckboxes = deviceListDiv.querySelectorAll('.device-checkbox:checked');
+            const isAnyClientChecked = checkedCheckboxes.length > 0;
+            const isAnyClientOnline = Array.from(clients.values()).some(c => c.online);
+
+            sendToSelectedBtn.disabled = !(isConnected && isAnyClientSelected);
+            sendToCheckedBtn.disabled = !(isConnected && isAnyClientChecked);
+             sendToAllBtn.disabled = !(isConnected && isAnyClientOnline);
+         }
+
+
+        // --- Event Listeners ---
+
+        connectBtn.addEventListener('click', () => {
+             if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+                connectWebSocket();
+             } else {
+                disconnectWebSocket();
+             }
+        });
+
+         // Tab switching
+         tabLogs.addEventListener('click', () => {
+             panelLogs.classList.remove('hidden');
+             panelCommand.classList.add('hidden');
+             tabLogs.classList.add('border-blue-500', 'text-blue-600');
+             tabLogs.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+             tabCommand.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+             tabCommand.classList.remove('border-blue-500', 'text-blue-600');
+             // Re-render logs in case client was selected while command tab was active
+             renderLogsForSelectedClient();
+         });
+
+         tabCommand.addEventListener('click', () => {
+             panelLogs.classList.add('hidden');
+             panelCommand.classList.remove('hidden');
+             tabCommand.classList.add('border-blue-500', 'text-blue-600');
+             tabCommand.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+             tabLogs.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+             tabLogs.classList.remove('border-blue-500', 'text-blue-600');
+         });
+
+         clearLogsBtn.addEventListener('click', () => {
+             if (selectedClientId) {
+                 logsByClient.set(selectedClientId, ''); // Clear stored logs for this client
+                 renderLogsForSelectedClient(); // Re-render the empty log panel
+                 addLogEntry('系统', `已清空设备 ${getClientName(selectedClientId)} 的本地日志显示。`);
+             } else {
+                 // If no client selected, maybe clear the system log area?
+                 // logOutputDiv.innerHTML = ''; // Or just log a message
+                 addLogEntry('系统', '请先选择一个设备以清空其日志。');
+             }
+         });
+
+         selectAllBtn.addEventListener('click', () => {
+            deviceListDiv.querySelectorAll('.device-checkbox').forEach(cb => cb.checked = true);
+            updateCheckedCount();
+         });
+
+         deselectAllBtn.addEventListener('click', () => {
+            deviceListDiv.querySelectorAll('.device-checkbox').forEach(cb => cb.checked = false);
+            updateCheckedCount();
+         });
+
+
+         // --- Command Sending ---
+        function sendScriptCommand(targetType, targetIds = []) {
+            const scriptContent = scriptInput.value.trim();
+            if (!scriptContent) {
+                alert("请输入要执行的脚本！");
+                return;
+            }
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                 alert("未连接到服务器！");
+                 return;
+            }
+
+            let message = {
+                type: 'admin_command', // Type the server understands
+                payload: {
+                    script: scriptContent,
+                    target: targetType // 'single', 'list', 'all'
+                }
+            };
+
+            if (targetType === 'single' && targetIds.length === 1) {
+                message.payload.clientId = targetIds[0];
+                 addLogEntry('命令', `尝试向设备 ${getClientName(targetIds[0])} 发送脚本...`);
+            } else if (targetType === 'list' && targetIds.length > 0) {
+                 message.payload.clientIds = targetIds;
+                 addLogEntry('命令', `尝试向 ${targetIds.length} 个勾选设备发送脚本...`);
+            } else if (targetType === 'all') {
+                 addLogEntry('命令', `尝试向所有在线设备发送脚本...`);
+            } else {
+                 console.error("Invalid targetType for sendScriptCommand:", targetType);
+                 return;
+            }
+
+            sendToServer(message);
+        }
+
+        sendToSelectedBtn.addEventListener('click', () => {
+            if (selectedClientId) {
+                sendScriptCommand('single', [selectedClientId]);
+            } else {
+                alert("请先从左侧列表选择一个目标设备！");
+            }
+        });
+
+        sendToCheckedBtn.addEventListener('click', () => {
+            const checkedIds = Array.from(deviceListDiv.querySelectorAll('.device-checkbox:checked'))
+                                   .map(cb => cb.dataset.clientId);
+            if (checkedIds.length > 0) {
+                 sendScriptCommand('list', checkedIds);
+            } else {
+                 alert("请先勾选至少一个目标设备！");
+            }
+        });
+
+         sendToAllBtn.addEventListener('click', () => {
+            if (confirm(`确定要向所有 ${clients.size} 个在线设备发送此脚本吗？`)) {
+                 sendScriptCommand('all');
+            }
+         });
+
+
+        // --- Initial Setup ---
+        updateStatus('disconnected', '未连接');
+        renderDeviceList(); // Show initial empty state
+        updateCommandButtons(); // Disable buttons initially
+        addLogEntry('系统', '控制台已加载，正在自动连接到 WebSocket 服务器...');
+        
+        // 自动连接 WebSocket
+        connectWebSocket();
+
+    </script>
+</body>
+</html>

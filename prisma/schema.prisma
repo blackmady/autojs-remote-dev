@@ -1,0 +1,25 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Device {
+  id         String   @id @default(cuid())
+  clientId   String   @unique
+  brand      String?
+  model      String?
+  sdkInt     Int?
+  release    String?
+  serial     String?
+  appName    String?
+  appVersion String?
+  lastSeen   DateTime
+  online     Boolean  @default(false)
+}
