@@ -11,8 +11,7 @@ const prisma = new PrismaClient();
 const PORT = 8080; // Define port
 
 // --- Data Storage ---
-// Store detailed info about connected Auto.js devices
-// Map<clientId, { ws: WebSocket, info: object, status: object, online: boolean, lastSeen: number }>
+// Map<serial, { ws: WebSocket, info: object, status: object, online: boolean, lastSeen: number }>
 const deviceClients = new Map();
 // Store connections for Admin UIs
 // Set<WebSocket>
@@ -42,7 +41,7 @@ function broadcastToAdmins(message) {
 // Send a message to a specific Auto.js device client
 function sendToDevice(clientId, message) {
   const client = deviceClients.get(clientId);
-  if (client && client.ws && client.ws.readyState === WebSocket.OPEN) {
+  if (client && client.ws && client.online) {
     try {
       client.ws.send(JSON.stringify(message));
       return true;
@@ -64,10 +63,9 @@ function getInitialClientListPayload() {
       clientId: clientId,
       online: clientData.online,
       lastSeen: clientData.lastSeen,
-      // Include essential info if available
       ...(clientData.info || {}),
-      // Include essential status if available
-      ...(clientData.status || {})
+      ...(clientData.status || {}),
+      device: { ...((clientData.info && clientData.info.device) || {}), serial: clientId }
     });
   });
   return { type: 'initial_client_list', payload: { clients: clientList } };
@@ -143,35 +141,44 @@ wss.on('connection', (ws, req) => {
         // Identified as an Auto.js Device Client
         isDeviceClient = true;
         isIdentified = true;
-        currentClientId = generateClientId();
-
-        const clientData = {
-          ws: ws,
-          info: data.payload, // Store initial info
-          status: {}, // Initialize status object
-          online: true,
-          lastSeen: Date.now(),
-        };
+        // 用 serial 作为 clientId
+        const serial = data.payload.device.serial;
+        let fallbackId = serial;
+        if (!serial || serial === 'unknown' || serial === '') {
+          // 若serial无效，尝试用brand+model+release组合
+          const d = data.payload.device;
+          fallbackId = [d.brand, d.model, d.release].filter(Boolean).join('-') || generateClientId();
+        }
+        currentClientId = fallbackId;
+        let clientData = deviceClients.get(currentClientId);
+        if (clientData) {
+          // 已存在，更新 ws、状态
+          clientData.ws = ws;
+          clientData.info = data.payload;
+          clientData.online = true;
+          clientData.lastSeen = Date.now();
+        } else {
+          // 新设备
+          clientData = {
+            ws: ws,
+            info: data.payload,
+            status: {},
+            online: true,
+            lastSeen: Date.now(),
+          };
+        }
         deviceClients.set(currentClientId, clientData);
         console.log(`Device client identified: ${currentClientId} (${clientData.info?.device?.model || 'Unknown Model'})`);
-
-        // Notify Admins
         broadcastToAdmins({
           type: 'client_connected',
           payload: {
             clientId: currentClientId,
-            info: clientData.info,
+            info: { ...clientData.info, device: { ...clientData.info.device, serial: currentClientId } },
             online: true,
             lastSeen: clientData.lastSeen
           }
         });
-
-        // Send acknowledgment / request more if needed
-        // ws.send(JSON.stringify({ type: 'server_ack', message: 'Connected successfully' }));
-        // Request status immediately if needed
         sendToDevice(currentClientId, { type: 'request_status' });
-
-        // 在设备上线或收到 info 时调用
         upsertDevice(currentClientId, data.payload, true);
 
       } else if (data.type === 'admin_request_clients') {
@@ -210,11 +217,14 @@ wss.on('connection', (ws, req) => {
 
     if (isDeviceClient && currentClientId && deviceClients.has(currentClientId)) {
       console.log(`Device client disconnected: ${currentClientId}`);
-      deviceClients.delete(currentClientId);
-      // Notify Admins
+      let clientData = deviceClients.get(currentClientId);
+      if (clientData) {
+        clientData.online = false;
+        clientData.ws = null;
+        clientData.lastSeen = Date.now();
+        deviceClients.set(currentClientId, clientData);
+      }
       broadcastToAdmins({ type: 'client_disconnected', payload: { clientId: currentClientId } });
-
-      // 在设备下线时调用
       upsertDevice(currentClientId, null, false);
 
     } else if (isAdminClient) {
@@ -231,10 +241,14 @@ wss.on('connection', (ws, req) => {
     // However, explicitly remove if needed, especially if 'close' doesn't fire reliably
     if (isDeviceClient && currentClientId && deviceClients.has(currentClientId)) {
       console.log(`Removing device client ${currentClientId} due to error.`);
-      deviceClients.delete(currentClientId);
+      let clientData = deviceClients.get(currentClientId);
+      if (clientData) {
+        clientData.online = false;
+        clientData.ws = null;
+        clientData.lastSeen = Date.now();
+        deviceClients.set(currentClientId, clientData);
+      }
       broadcastToAdmins({ type: 'client_disconnected', payload: { clientId: currentClientId } });
-
-      // 在设备下线时调用
       upsertDevice(currentClientId, null, false);
     } else if (isAdminClient) {
       console.log(`Removing admin client due to error.`);
