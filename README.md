@@ -123,7 +123,9 @@
 
 ## 贡献与许可
 
-- 本项目遵循 ISC 协议，欢迎二次开发与贡献。
+- 本项目采用 [GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.html) 开源协议发布。
+- 你可以自由地使用、修改、分发本项目，但**必须在分发时同样采用 GPL-3.0 协议，并附带源代码**。
+- 详情请参阅 [LICENSE](LICENSE) 或 [GNU 官网](https://www.gnu.org/licenses/gpl-3.0.html)。
 
 ---
 
