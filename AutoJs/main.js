@@ -485,6 +485,8 @@ function sendLogToServer(level, message) {
 }
 
 function handleServerMessage(messageText) {
+  const workspace_path="/sdcard/autojs_remote_workspace/";
+  // const workspace_path="/storage/emulated/10/脚本/autojs_remote_workspace/";
   try {
     const message = JSON.parse(messageText);
     logToUI(`处理指令: ${message.type}`);
@@ -510,6 +512,30 @@ function handleServerMessage(messageText) {
       case "ping": // Server ping, respond with pong
         logToUI("收到 Ping, 回复 Pong");
         sendToServer({ type: "pong", timestamp: new Date().toISOString() });
+        break;
+      case "run_script":
+        let entry = message.payload && message.payload.entry ? message.payload.entry : "main.js";
+        logToUI("收到运行请求，正在执行 " + entry);
+        try {
+          engines.execScriptFile(workspace_path + entry);
+        } catch (e) {
+          logToUI("执行入口脚本失败: " + e);
+        }
+        break;
+      case "file_update":
+        let filename = message.payload && message.payload.filename;
+        let content = message.payload && message.payload.content;
+        if (filename && typeof content === 'string') {
+          // 规范化 filename，去除前缀斜杠和点
+          filename = filename.replace(/^\/?(\.?\/)?/, '');
+          let baseDir = workspace_path;
+          let fullPath = baseDir + filename;
+          logToUI("准备保存文件: " + fullPath);
+          // 自动创建多级目录
+          files.ensureDir(fullPath);
+          files.write(fullPath, content);
+          logToUI("已保存文件: " + fullPath);
+        }
         break;
       // Add more cases for other commands from the server
       default:

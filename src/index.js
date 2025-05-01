@@ -358,11 +358,32 @@ function handleAdminMessage(adminWs, data) {
       // adminWs.send(JSON.stringify({ type: 'command_sent_ack', payload: { target, sentCount } }));
       break;
 
+    case 'run_script':
+      if (data.payload && data.payload.clientId && data.payload.entry) {
+        sendToDevice(data.payload.clientId, {
+          type: 'run_script',
+          payload: { entry: data.payload.entry }
+        });
+      }
+      break;
+
     case 'admin_request_clients':
       // Admin might request refresh
       try {
         adminWs.send(JSON.stringify(getInitialClientListPayload()));
       } catch (err) { console.error("Failed send client list refresh to admin:", err); }
+      break;
+
+    case 'file_update':
+      if (data.payload && data.payload.clientId && data.payload.filename && typeof data.payload.content === 'string') {
+        sendToDevice(data.payload.clientId, {
+          type: 'file_update',
+          payload: {
+            filename: data.payload.filename,
+            content: data.payload.content
+          }
+        });
+      }
       break;
 
     // Handle other admin-specific commands here if needed
